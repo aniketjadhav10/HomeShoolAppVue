@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/HomeShoolAppVue/sw.js', { scope: '/HomeShoolAppVue/' })})}

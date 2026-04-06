@@ -1,7 +1,7 @@
 <script setup>
-import HelloWorld from './components/HelloWorld.vue'
+import GoogleSheetApp from './components/GoogleSheetApp.vue'
 </script>
 
 <template>
-  <HelloWorld />
+  <GoogleSheetApp />
 </template>

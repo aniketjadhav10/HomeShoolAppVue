@@ -15,6 +15,7 @@ function getHomeschoolData() {
     timeLogs: getSheetDataAsObjects(ss, 'TimeLogs'),
     assessments: getSheetDataAsObjects(ss, 'Assessments'),
     portfolio: getSheetDataAsObjects(ss, 'Portfolio'),
+    calendarEvents: getSheetDataAsObjects(ss, 'CalendarEvents'),
   };
 }
 

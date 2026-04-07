@@ -9,6 +9,9 @@ export default defineConfig({
     tailwindcss(),
     vue(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
       registerType: 'autoUpdate',
       injectRegister: 'script',
       includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png'],

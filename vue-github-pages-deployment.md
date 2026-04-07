@@ -206,4 +206,127 @@ const BASE_URL = import.meta.env.VITE_API_URL;
 
 ---
 
-Happy Coding 🚀
+# 🧰 CLASP Command Cheat Sheet
+
+## 🔹 1. Authentication
+
+```bash
+clasp login
+
+Login with your Google account
+
+clasp logout
+
+Logout current session
+
+🔹 2. Create / Clone Projects
+clasp create --title "MyApp" --type webapp
+
+Create new Apps Script project
+
+clasp clone <SCRIPT_ID>
+
+Clone existing Apps Script project
+
+Script ID example:
+
+https://script.google.com/d/SCRIPT_ID/edit
+🔹 3. Push & Pull Code
+clasp push
+
+Upload local code → Apps Script
+
+clasp pull
+
+Download latest code → local
+
+clasp push --force
+
+Force overwrite (use carefully ⚠️)
+
+🔹 4. Open Project
+clasp open
+
+Opens project in browser
+
+clasp open-script
+
+Opens Apps Script editor
+
+🔹 5. Deployments
+clasp deploy
+
+Create new deployment
+
+clasp deployments
+
+List all deployments
+
+clasp deploy --deploymentId <DEPLOYMENT_ID>
+
+Update existing deployment
+
+🔹 6. Web App Deployment
+
+After deploy, you’ll get a Web App URL
+
+To update after code change:
+
+clasp push
+clasp deploy --deploymentId <DEPLOYMENT_ID>
+🔹 7. Logs & Debugging
+clasp logs
+
+View execution logs
+
+clasp logs --watch
+
+Live logs
+
+clasp logs --json
+
+Logs in JSON format
+
+🔹 8. Run Functions from CLI
+clasp run functionName
+
+Example:
+
+clasp run getData
+🔹 9. Versions
+clasp version "Added API endpoint"
+
+Create version for deployment
+
+🔹 10. Project Settings
+clasp status
+
+See changed files
+
+clasp setting
+
+Open .clasp.json
+
+🔹 11. Enable APIs
+clasp apis list
+clasp apis enable drive
+⚡ Typical Workflow
+🧩 First Time Setup
+clasp login
+clasp create --type webapp
+clasp push
+clasp deploy
+🔁 Daily Development Flow
+clasp push
+clasp deploy --deploymentId <ID>
+🔍 Debugging
+clasp logs --watch
+💡 Pro Tips
+.clasp.json Example
+{
+  "scriptId": "YOUR_SCRIPT_ID",
+  "rootDir": "dist"
+}
+.claspignore Example
+node_modules/
+.git/

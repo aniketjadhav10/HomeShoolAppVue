@@ -77,11 +77,69 @@ function ensureSheetWithHeaders_(ss, sheetName, headers) {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     return sheet;
   }
-  const existing = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0] || [];
+  const existing = sheet.getRange(1, 1, 1, Math.max(1, sheet.getLastColumn())).getDisplayValues()[0] || [];
   const existingSet = new Set(existing.map(h => (h || '').toString().trim()));
   const missing = headers.filter(h => !existingSet.has(h));
   if (missing.length) {
-    sheet.getRange(1, existing.length + 1, 1, missing.length).setValues([missing]);
+    sheet.getRange(1, Math.max(1, sheet.getLastColumn()) + 1, 1, missing.length).setValues([missing]);
   }
   return sheet;
+}
+
+/**
+ * 🛠 DATABASE INITIALIZER
+ * Run this function from the Apps Script editor to create/fix all 
+ * required sheets and columns for the Yug Homeschool App.
+ */
+function initializeHomeschoolDatabase() {
+  console.log('[DB] Starting Database Initialization...');
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  const schema = {
+    'Subjects': ['SubjectId', 'SubjectName', 'Description', 'UpdatedAt'],
+    'Lessons': ['SubjectId', 'SubjectName', 'LessonId', 'LessonName', 'Description', 'BlockType', 'Content', 'Status', 'CreatedDate', 'LearnedCount', 'TargetCount', 'LearnInThisWeek', 'UpdatedAt'],
+    'LessonTask': ['LessonId', 'LessonTaskId', 'TaskName', 'Notes', 'FileLink', 'BlockType', 'Status', 'LearnedCount', 'TargetCount', 'Photo', 'UpdatedAt'],
+    'Progress Tracker': ['Id', 'LessonTaskId', 'LessonId', 'LessonName', 'Date', 'UpdatedAt'],
+    'Settings': ['Key', 'Value', 'UpdatedAt'],
+    'Attendance': ['Date', 'ChildName', 'Status', 'Notes', 'UpdatedAt'],
+    'TimeLogs': ['Date', 'ChildName', 'StartTime', 'EndTime', 'Duration', 'Activity', 'LessonId', 'UpdatedAt'],
+    'Assessments': ['AssessmentId', 'SubjectId', 'LessonId', 'ChildName', 'Date', 'Type', 'Score', 'Status', 'UpdatedAt'],
+    'Portfolio': ['Id', 'LessonId', 'Date', 'Title', 'ImageLink', 'Notes', 'UpdatedAt'],
+    'CalendarEvents': ['EventId', 'Title', 'Description', 'StartDate', 'EndDate', 'Type', 'LessonId', 'UpdatedAt']
+  };
+
+  const results = [];
+
+  for (const sheetName in schema) {
+    try {
+      ensureSheetWithHeaders_(ss, sheetName, schema[sheetName]);
+      results.push(`✅ ${sheetName}: OK`);
+      console.log(`[DB] Sheet verified: ${sheetName}`);
+    } catch (e) {
+      results.push(`❌ ${sheetName}: Failed (${e.message})`);
+      console.error(`[DB] Error verifying sheet ${sheetName}: ${e.message}`);
+    }
+  }
+
+  // Ensure Media Folder exists and is permissions-ready
+  try {
+    const folder = ensureMediaFolderExists();
+    results.push(`✅ Google Drive Media Folder: READY (${folder.getName()})`);
+    console.log(`[DB] Media folder verified: ${folder.getId()}`);
+  } catch (e) {
+    results.push(`❌ Google Drive Media Folder: ERROR (${e.message})`);
+    console.error(`[DB] Media folder error: ${e.message}`);
+  }
+
+  // Ensure default settings exist
+  saveAppSettings({
+    'weekStartDay': 'MONDAY',
+    'childAge': '2',
+    'wife_email': '',         // Placeholder for wife's email
+    'daily_email_time': '6',   // 6 AM default
+    'homeschool_calendar_id': '' // Dedicated calendar storage
+  });
+
+  console.log('[DB] Database Initialization Complete.');
+  return "Database Initialization Report:\n" + results.join('\n');
 }

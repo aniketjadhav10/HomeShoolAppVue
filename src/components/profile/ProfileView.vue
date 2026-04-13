@@ -161,21 +161,27 @@
 <script setup>
 import { computed } from 'vue';
 import { dataStore } from '../../stores/dataStore';
+import { subjectRepository } from '../../repositories/subjectRepository';
+import { lessonRepository } from '../../repositories/lessonRepository';
+// ✅ Import shared composables
+import { normalizeBool, normalizeStatus } from '../../composables/useLessonStatus';
+import { getLessonProgress } from '../../composables/useLessonProgress';
 
-const normalizeStatus = (v) => (v ?? '').toString().trim().toLowerCase();
+const normalizeStatusStr = (v) => (v ?? '').toString().trim().toLowerCase();
+
 
 const totalLessons = computed(() => {
-  return (dataStore.state.lessons || []).filter(l => normalizeStatus(l.Status) === 'completed').length || 0;
+  return lessonRepository.getLessons().filter(l => normalizeStatus(l.Status) === 'completed').length || 0;
 });
 
 const completedSessions = computed(() => {
-  return (dataStore.state.lessons || []).reduce((acc, l) => acc + (parseInt(l.LearnedCount) || 0), 0);
+  return lessonRepository.getLessons().reduce((acc, l) => acc + (parseInt(l.LearnedCount) || 0), 0);
 });
 
 const topSubjects = computed(() => {
-  const subjectsWithProgress = (dataStore.state.subjects || []).map(sub => {
-    const subLessons = (dataStore.state.lessons || []).filter(l => l.SubjectId === sub.SubjectId);
-    if (!subLessons.length) return { id: sub.SubjectId, name: sub['Subject Name'], progress: 0 };
+  const subjectsWithProgress = subjectRepository.getSubjects().map(sub => {
+    const subLessons = lessonRepository.getLessonsBySubject(sub.SubjectId);
+    if (!subLessons.length) return { id: sub.SubjectId, name: sub['SubjectName'], progress: 0 };
     
     let totalTargets = subLessons.reduce((acc, l) => acc + Math.max(1, parseInt(l.TargetCount) || 1), 0);
     let totalLearned = subLessons.reduce((acc, l) => acc + (parseInt(l.LearnedCount) || 0), 0);
@@ -186,7 +192,7 @@ const topSubjects = computed(() => {
     
     return {
       id: sub.SubjectId,
-      name: sub['Subject Name'],
+      name: sub['SubjectName'],
       progress: rank
     }
   });

@@ -1,41 +1,49 @@
 // LessonTask sheet: progress updates, CRUD, Gemini generation
 
-function updateTask(taskId, lessonId, lessonName, progressVal, isLearnedToday) {
+function updateTask(taskId, lessonId, lessonName, status, learnedCount, targetCount, photo, blockType) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const taskSheet = ss.getSheetByName('LessonTask');
 
   if (taskSheet) {
     const data = taskSheet.getDataRange().getValues();
     const headers = data[0];
-    const idIdx = headers.indexOf('LessonTaskId');
-    const progIdx = headers.indexOf('Progress');
-    const learnedIdx = headers.indexOf('LearnedToday');
-    const lastLearnedIdx = headers.indexOf('LastLearned');
+    const idIdx      = headers.indexOf('LessonTaskId');
+    const statusIdx  = headers.indexOf('Status');
+    const learnedIdx = headers.indexOf('LearnedCount');
+    const targetIdx  = headers.indexOf('TargetCount');
+    const photoIdx   = headers.indexOf('Photo');
+    const blockIdx   = headers.indexOf('BlockType');
+    const updateIdx  = headers.indexOf('UpdatedAt');
 
     for (let i = 1; i < data.length; i++) {
       if (data[i][idIdx].toString() === taskId.toString()) {
-        if (progIdx > -1) taskSheet.getRange(i + 1, progIdx + 1).setValue(progressVal);
-        if (learnedIdx > -1) taskSheet.getRange(i + 1, learnedIdx + 1).setValue(isLearnedToday ? 'TRUE' : 'FALSE');
-        if (isLearnedToday && lastLearnedIdx > -1) {
-          taskSheet.getRange(i + 1, lastLearnedIdx + 1).setValue(new Date());
-        }
+        const rowNum = i + 1;
+        if (statusIdx  > -1) taskSheet.getRange(rowNum, statusIdx  + 1).setValue(status);
+        if (learnedIdx > -1) taskSheet.getRange(rowNum, learnedIdx + 1).setValue(learnedCount);
+        if (targetIdx  > -1) taskSheet.getRange(rowNum, targetIdx  + 1).setValue(targetCount);
+        if (photoIdx   > -1 && photo     !== undefined) taskSheet.getRange(rowNum, photoIdx   + 1).setValue(photo);
+        if (blockIdx   > -1 && blockType !== undefined) taskSheet.getRange(rowNum, blockIdx   + 1).setValue(blockType);
+        if (updateIdx  > -1) taskSheet.getRange(rowNum, updateIdx  + 1).setValue(new Date());
+        console.log(`[Tasks] updateTask ${taskId}: status=${status}, block=${blockType}`);
         break;
       }
     }
   }
 
-  if (isLearnedToday) {
+  // Log completion to Progress Tracker
+  if (status === 'Completed') {
     const progSheet = ss.getSheetByName('Progress Tracker');
     if (progSheet) {
       const newId = progSheet.getLastRow();
-      progSheet.appendRow([newId, taskId, lessonId, lessonName, new Date()]);
+      progSheet.appendRow([newId, taskId, lessonId, lessonName, new Date(), new Date()]);
     }
   }
 
+  if (typeof clearDataCache === 'function') clearDataCache();
   return getHomeschoolData();
 }
 
-function saveLessonTask(taskId, lessonId, lessonName, notes, initialProgress) {
+function saveLessonTask(taskId, lessonId, lessonName, notes, targetCount) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('LessonTask');
   if (!sheet) {
@@ -45,21 +53,25 @@ function saveLessonTask(taskId, lessonId, lessonName, notes, initialProgress) {
   const data = sheet.getDataRange().getValues();
   const headers = data[0];
 
-  const idIdx = headers.indexOf('LessonTaskId');
-  const lessonIdIdx = headers.indexOf('LessonId');
-  const nameIdx = headers.indexOf('Task Name');
+  const lIdIdx = headers.indexOf('LessonId');
+  const taskIdIdx = headers.indexOf('LessonTaskId');
+  const nameIdx = headers.indexOf('TaskName');
   const notesIdx = headers.indexOf('Notes');
-  const progressIdx = headers.indexOf('Progress');
-  const learnedIdx = headers.indexOf('LearnedToday');
+  const statusIdx = headers.indexOf('Status');
+  const learnedIdx = headers.indexOf('LearnedCount');
+  const targetIdx = headers.indexOf('TargetCount');
+  const updateIdx = headers.indexOf('UpdatedAt');
 
-  const safeProgress =
-    typeof initialProgress === 'number' ? initialProgress : parseInt(initialProgress, 10) || 0;
+  const safeTarget = parseInt(targetCount, 10) || 1;
 
-  if (!taskId) {
+  const isNew = !taskId || taskId.toString().startsWith('temp-');
+  let createdId = null;
+
+  if (isNew) {
     let maxId = 0;
-    if (idIdx > -1) {
+    if (taskIdIdx > -1) {
       for (let i = 1; i < data.length; i++) {
-        const current = data[i][idIdx] ? data[i][idIdx].toString() : '';
+        const current = data[i][taskIdIdx] ? data[i][taskIdIdx].toString() : '';
         const match = current.match(/\d+/);
         if (match) {
           const num = parseInt(match[0], 10);
@@ -70,32 +82,41 @@ function saveLessonTask(taskId, lessonId, lessonName, notes, initialProgress) {
       }
     }
     const nextIdNum = maxId + 1;
-    const newId = 'TASK' + nextIdNum.toString().padStart(3, '0');
+    createdId = 'TASK' + nextIdNum.toString().padStart(3, '0');
 
+    console.log(`[DB] Creating new Task: ${createdId} - ${lessonName} (Lesson: ${lessonId})`);
     const row = new Array(headers.length).fill('');
 
-    if (idIdx > -1) row[idIdx] = newId;
-    if (lessonIdIdx > -1) row[lessonIdIdx] = lessonId;
+    if (lIdIdx > -1) row[lIdIdx] = lessonId;
+    if (taskIdIdx > -1) row[taskIdIdx] = createdId;
     if (nameIdx > -1) row[nameIdx] = lessonName;
     if (notesIdx > -1) row[notesIdx] = notes || '';
-    if (progressIdx > -1) row[progressIdx] = safeProgress;
-    if (learnedIdx > -1) row[learnedIdx] = safeProgress === 100 ? 'TRUE' : 'FALSE';
+    if (statusIdx > -1) row[statusIdx] = 'Pending';
+    if (learnedIdx > -1) row[learnedIdx] = 0;
+    if (targetIdx > -1) row[targetIdx] = safeTarget;
+    if (updateIdx > -1) row[updateIdx] = new Date();
 
     sheet.appendRow(row);
   } else {
-    if (idIdx === -1) {
+    if (taskIdIdx === -1) {
       throw new Error('LessonTaskId column not found in LessonTask sheet');
     }
     for (let i = 1; i < data.length; i++) {
-      if (data[i][idIdx].toString() === taskId.toString()) {
+      if (data[i][taskIdIdx].toString() === taskId.toString()) {
+        console.log(`[DB] Updating Task: ${taskId} - ${lessonName}`);
         if (nameIdx > -1) sheet.getRange(i + 1, nameIdx + 1).setValue(lessonName);
         if (notesIdx > -1) sheet.getRange(i + 1, notesIdx + 1).setValue(notes || '');
+        if (targetIdx > -1) sheet.getRange(i + 1, targetIdx + 1).setValue(safeTarget);
+        if (updateIdx > -1) sheet.getRange(i + 1, updateIdx + 1).setValue(new Date());
         break;
       }
     }
   }
 
-  return getHomeschoolData();
+  if (typeof clearDataCache === 'function') clearDataCache();
+  const result = getHomeschoolData();
+  if (isNew) result._newId = createdId;
+  return result;
 }
 
 function deleteLessonTask(taskId) {
@@ -206,16 +227,19 @@ function generateLessonTasksWithGemini(lessonId, lessonName, childAge) {
   const headers = data[0];
 
   const idIdx = headers.indexOf('LessonTaskId');
-  const lessonIdIdx = headers.indexOf('LessonId');
-  const nameIdx = headers.indexOf('Task Name');
+  const lIdIdx = headers.indexOf('LessonId');
+  const taskIdIdx = headers.indexOf('LessonTaskId');
+  const nameIdx = headers.indexOf('TaskName');
   const notesIdx = headers.indexOf('Notes');
-  const progressIdx = headers.indexOf('Progress');
-  const learnedIdx = headers.indexOf('LearnedToday');
+  const statusIdx = headers.indexOf('Status');
+  const learnedIdx = headers.indexOf('LearnedCount');
+  const targetIdx = headers.indexOf('TargetCount');
+  const updateIdx = headers.indexOf('UpdatedAt');
 
   let maxId = 0;
-  if (idIdx > -1) {
+  if (taskIdIdx > -1) {
     for (let i = 1; i < data.length; i++) {
-      const current = data[i][idIdx] ? data[i][idIdx].toString() : '';
+      const current = data[i][taskIdIdx] ? data[i][taskIdIdx].toString() : '';
       const match = current.match(/\d+/);
       if (match) {
         const num = parseInt(match[0], 10);
@@ -235,19 +259,54 @@ function generateLessonTasksWithGemini(lessonId, lessonName, childAge) {
     const newId = 'TASK' + maxId.toString().padStart(3, '0');
 
     const row = new Array(headers.length).fill('');
-    if (idIdx > -1) row[idIdx] = newId;
-    if (lessonIdIdx > -1) row[lessonIdIdx] = lessonId;
+    if (lIdIdx > -1) row[lIdIdx] = lessonId;
+    if (taskIdIdx > -1) row[taskIdIdx] = newId;
     if (nameIdx > -1) row[nameIdx] = title;
     if (notesIdx > -1) row[notesIdx] = notes;
-    if (progressIdx > -1) row[progressIdx] = 0;
-    if (learnedIdx > -1) row[learnedIdx] = 'FALSE';
+    if (statusIdx > -1) row[statusIdx] = 'Pending';
+    if (learnedIdx > -1) row[learnedIdx] = 0;
+    if (targetIdx > -1) row[targetIdx] = 1;
+    if (updateIdx > -1) row[updateIdx] = new Date();
 
     newRows.push(row);
   });
 
   if (newRows.length) {
+    console.log(`[AI] Appending ${newRows.length} tasks generated by Gemini to LessonTask sheet.`);
     sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, headers.length).setValues(newRows);
+  } else {
+    console.warn('[AI] Gemini returned data but no valid task rows were constructed.');
   }
 
   return getHomeschoolData();
+}
+
+/**
+ * Uses Gemini to suggest a creative alternative for a lesson with low interest.
+ */
+function getAlternativeActivityWithAi(lessonName, childAge) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set.');
+
+  const prompt = `Yug is a ${childAge} year old child. The lesson "${lessonName}" currently has low interest. 
+  Suggest 3 short, creative, and highly engaging alternative ways to teach this same topic. 
+  Focus on play-based learning, sensory activities, or storytelling. 
+  Keep suggestions very brief (1-2 sentences each).`;
+
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + apiKey;
+  const payload = { contents: [{ parts: [{ text: prompt }] }] };
+
+  const response = UrlFetchApp.fetch(url, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload)
+  });
+
+  const json = JSON.parse(response.getContentText());
+  const text = json.candidates[0].content.parts[0].text;
+  
+  return {
+    status: 'success',
+    suggestion: text
+  };
 }

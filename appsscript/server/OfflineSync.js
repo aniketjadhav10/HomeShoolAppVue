@@ -20,7 +20,11 @@ function syncOfflineQueue(bulkPayloadArray) {
       queue = bulkPayloadArray;
     }
 
-    if (!Array.isArray(queue)) return getHomeschoolData();
+    if (!Array.isArray(queue)) {
+      console.warn('[Sync] Received non-array queue payload.');
+      return getHomeschoolData();
+    }
+    console.log(`[Sync] Starting bulk sync: ${queue.length} raw actions.`);
 
     // 1. Sort Chronologically
     let sortedQueue = queue.sort((a, b) => a.timestamp - b.timestamp);
@@ -40,23 +44,51 @@ function syncOfflineQueue(bulkPayloadArray) {
         optimizedQueue.unshift(item);
       }
     }
+    console.log(`[Sync] Optimized queue: ${optimizedQueue.length} actions after deduplication.`);
 
     // 3. Execution & ID Translation Loop
     const idTranslationMap = {};
 
     for (let i = 0; i < optimizedQueue.length; i++) {
       const item = optimizedQueue[i];
-      if (typeof this[item.action] !== 'function' || item.action === 'syncOfflineQueue') continue;
+      
+      let func = null;
+      try {
+        if (typeof GLOBAL_ROOT[item.action] === 'function') func = GLOBAL_ROOT[item.action];
+        else if (typeof globalThis[item.action] === 'function') func = globalThis[item.action];
+        else {
+          const resolved = eval(item.action);
+          if (typeof resolved === 'function') func = resolved;
+        }
+      } catch (e) {}
 
+      if (!func || item.action === 'syncOfflineQueue') {
+        console.warn(`[Sync] Skipping unknown or recursive function: ${item.action}`);
+        continue;
+      }
+
+      // Translate IDs for parents/dependencies (e.g. lesson using a newly created subjectId)
       const translatedArgs = item.args.map(arg => idTranslationMap[arg] || arg);
 
       try {
-        const freshDataSnapshot = this[item.action].apply(this, translatedArgs);
+        console.log(`[Sync] Executing ${i+1}/${optimizedQueue.length}: ${item.action}`);
+        const result = func.apply(null, translatedArgs);
+        
+        // If this was a creation action that returned a new server ID, 
+        // map the old temporary ID to the new real ID.
+        if (result && result._newId) {
+          const originalTempId = item.args[0]; // The first arg is usually the ID being saved
+          if (originalTempId && originalTempId.toString().startsWith('temp-')) {
+            console.log(`[Sync] ID Translation: ${originalTempId} → ${result._newId}`);
+            idTranslationMap[originalTempId] = result._newId;
+          }
+        }
       } catch (e) {
-        console.error("Bulk sync failure on " + item.action + ": " + e.toString());
+        console.error(`[Sync] Bulk execution failure on ${item.action}: ${e.toString()}`);
       }
     }
 
+    console.log('[Sync] Bulk sync completed. Returning fresh data.');
     return getHomeschoolData();
 
   } finally {

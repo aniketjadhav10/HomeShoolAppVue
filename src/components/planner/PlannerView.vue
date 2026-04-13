@@ -68,10 +68,20 @@
               
               <div v-if="getEventsForDate(selectedDate).length === 0" class="text-xs text-slate-400 italic mb-4">No events mapped for this day.</div>
               
-              <ul class="space-y-3 mb-5 max-h-32 overflow-y-auto pr-2 scrollbar-hide">
-                <li v-for="(event, idx) in getEventsForDate(selectedDate)" :key="'evt'+idx" class="flex items-center gap-3">
-                  <div :class="['w-2 h-2 rounded-sm shrink-0', getEventTypeColor(event.Type)]"></div>
-                  <span class="text-xs sm:text-sm font-bold text-slate-700 truncate flex-1">{{ event.Title }}</span>
+              <ul class="space-y-3 mb-5 max-h-48 overflow-y-auto pr-2 scrollbar-hide">
+                <li v-for="(event, idx) in getEventsForDate(selectedDate)" :key="'evt'+idx" class="flex items-center gap-3 bg-slate-50/50 p-2 rounded-xl border border-slate-100/50">
+                  <div v-if="event.IsLesson" class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-sm border border-indigo-200">
+                    <i class="fa-solid fa-book-open text-[10px]"></i>
+                  </div>
+                  <div v-else :class="['w-2 h-2 rounded-sm shrink-0 mx-3', getEventTypeColor(event.Type)]"></div>
+                  
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs sm:text-sm font-bold text-slate-700 truncate">{{ event.Title }}</span>
+                      <span v-if="event.IsLesson" class="text-[8px] font-black uppercase tracking-tighter text-indigo-400 border border-indigo-100 px-1.5 py-0.5 rounded bg-white">Lesson</span>
+                    </div>
+                    <p v-if="event.IsLesson" class="text-[9px] font-bold text-slate-400 mt-0.5 uppercase tracking-wide">{{ event.Subject }} • {{ event.Status }}</p>
+                  </div>
                   <i class="fa-solid fa-check text-emerald-500 text-[10px]"></i>
                 </li>
               </ul>
@@ -92,21 +102,21 @@
           </div>
 
           <div class="bg-white/80 backdrop-blur border border-slate-200 rounded-3xl p-4 md:p-8 shadow-xl shadow-slate-200/50">
-            <h3 class="text-lg md:text-xl font-black flex items-center gap-2 md:gap-3 mb-4 text-slate-800"><div class="p-1.5 md:p-2 bg-amber-100 rounded-xl"><i class="fa-solid fa-sun text-amber-500 text-sm md:text-base"></i></div> Today's Block Runs</h3>
+            <h3 class="text-base md:text-lg font-black flex items-center gap-2 md:gap-3 mb-4 text-slate-800"><div class="p-1.5 md:p-2 bg-amber-100 rounded-xl"><i class="fa-solid fa-sun text-amber-500 text-xs md:text-sm"></i></div> Today's Block Runs</h3>
             <transition-group name="list" tag="div" class="space-y-3">
               <div v-if="agendaToday.length === 0" key="empty" class="py-8 text-sm text-center text-slate-500 italic bg-slate-50 rounded-2xl border border-dashed border-slate-200 max-w-full overflow-hidden">No timeline blocks setup.</div>
               <div v-for="item in agendaToday" :key="item.ScheduleId" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 py-3 px-4 bg-white border border-slate-200 border-l-[4px] border-l-blue-500 rounded-2xl shadow-sm hover:shadow-lg transition-all group relative">
-                <div class="text-[10px] md:text-sm font-black text-slate-500 w-auto md:w-32 shrink-0 bg-slate-100 px-2.5 py-1 md:py-1.5 rounded-lg text-center md:text-left self-start md:self-auto border border-slate-200 uppercase tracking-widest">{{ item.StartTime || '00:00' }} - {{ item.EndTime || '00:00' }}</div>
+                <div class="text-[10px] md:text-xs font-black text-slate-500 w-auto md:w-32 shrink-0 bg-slate-100 px-2.5 py-1 md:py-1.5 rounded-lg text-center md:text-left self-start md:self-auto border border-slate-200 uppercase tracking-widest">{{ item.StartTime || '00:00' }} - {{ item.EndTime || '00:00' }}</div>
                 <div class="flex-1 min-w-0 pr-8 md:pr-0">
-                  <h4 class="font-black text-slate-800 text-sm md:text-base truncate">{{ item.SubjectName }} <span class="text-slate-300 mx-1 font-normal">•</span> {{ item.LessonName }}</h4>
-                  <p v-if="item.Notes" class="text-[10px] md:text-xs font-medium text-slate-500 mt-1 truncate max-w-full">{{ item.Notes }}</p>
+                  <h4 class="font-black text-slate-800 text-[13px] md:text-base truncate">{{ item.SubjectName }} <span class="text-slate-300 mx-1 font-normal">•</span> {{ item.LessonName }}</h4>
+                  <p v-if="item.Notes" class="text-[9px] md:text-[10px] font-medium text-slate-500 mt-1 truncate max-w-full">{{ item.Notes }}</p>
                 </div>
               </div>
             </transition-group>
           </div>
 
           <div class="bg-white/80 backdrop-blur border border-slate-200 rounded-3xl p-4 md:p-8 shadow-xl shadow-slate-200/50">
-            <h3 class="text-lg font-black flex items-center gap-2 mb-4 text-slate-800"><div class="p-1.5 md:p-2 bg-blue-100 rounded-xl"><i class="fa-solid fa-clock text-blue-500 text-sm md:text-base"></i></div> New Block</h3>
+            <h3 class="text-base font-black flex items-center gap-2 mb-4 text-slate-800"><div class="p-1.5 md:p-2 bg-blue-100 rounded-xl"><i class="fa-solid fa-clock text-blue-500 text-xs md:text-sm"></i></div> New Block</h3>
             <form @submit.prevent="addSchedule" class="flex flex-col gap-3">
               <div class="grid grid-cols-2 gap-3 w-full">
                 <div><label class="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-widest pl-1">Start</label><input type="time" v-model="scheduleForm.start" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-sm text-slate-800 font-bold focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none" /></div>
@@ -116,7 +126,7 @@
                 <label class="block text-[10px] font-black text-slate-500 mb-1 uppercase tracking-widest pl-1">Attach Module</label>
                 <select v-model="scheduleForm.lessonId" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-sm text-slate-800 font-bold focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg...')] pr-10">
                   <option value="" disabled class="text-slate-400 font-normal">Select lesson...</option>
-                  <option v-for="l in dataStore.state.lessons" :key="l.LessonId" :value="l.LessonId" class="font-bold bg-white text-slate-800">{{ l.SubjectName }} • {{ l['Lesson Name'] }}</option>
+                  <option v-for="l in lessonRepository.getLessons()" :key="l.LessonId" :value="l.LessonId" class="font-bold bg-white text-slate-800">{{ l.SubjectName }} • {{ l['LessonName'] }}</option>
                 </select>
               </div>
               <button type="submit" class="w-full mt-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-black text-sm shadow-xl shadow-blue-500/30 transition-all outline-none active:scale-95 flex items-center justify-center gap-2"><i class="fa-solid fa-plus"></i> Reserve Block</button>
@@ -165,6 +175,9 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { dataStore, dispatchAction } from '../../stores/dataStore';
+import { lessonRepository } from '../../repositories/lessonRepository';
+import { plannerRepository } from '../../repositories/plannerRepository';
+import { normalizeBool } from '../../composables/useLessonStatus';
 
 // === VIEW MODES ===
 const viewMode = ref('Month'); 
@@ -207,9 +220,28 @@ const formatSelectedDateDisplay = (dateStr) => {
 };
 
 // Mock Events Check
+const getLessonsByDate = (dateStr) => {
+  if (!dateStr) return [];
+  // Only show lessons that are marked for this week and match the due date
+  return lessonRepository.getLessons().filter(l => {
+    if (!normalizeBool(l.LearnInThisWeek)) return false;
+    if (!l.NextDueDate) return false;
+    // Extract YYYY-MM-DD from ISO string
+    const dueDate = new Date(l.NextDueDate).toISOString().split('T')[0];
+    return dueDate === dateStr;
+  }).map(l => ({
+    Title: l['LessonName'],
+    Subject: l.SubjectName,
+    Type: 'Lesson',
+    Status: l.Status,
+    IsLesson: true
+  }));
+};
+
 const getEventsForDate = (dateStr) => {
-  if (!dataStore.state.calendarEvents) return [];
-  return dataStore.state.calendarEvents.filter(e => e.Date === dateStr);
+  const events = plannerRepository.getEventsByDate(dateStr);
+  const lessons = getLessonsByDate(dateStr);
+  return [...events, ...lessons];
 };
 
 const hasEvents = (day) => {
@@ -241,7 +273,7 @@ const getEventTypeColor = (type) => {
 
 const saveEvent = async () => {
   if (eventForm.value.title && selectedDate.value) {
-    await dispatchAction('saveCalendarEvent', null, selectedDate.value, eventForm.value.title, eventForm.value.type, eventForm.value.notes);
+    await plannerRepository.saveCalendarEvent(null, selectedDate.value, eventForm.value.title, eventForm.value.type, eventForm.value.notes);
     showAddEventModal.value = false;
     eventForm.value = { title: '', type: 'Task', notes: '' };
   }
@@ -252,17 +284,17 @@ const plannerDate = ref(new Date().toISOString().slice(0, 10));
 const scheduleForm = ref({ start: '09:00', end: '10:00', lessonId: '', notes: '' });
 
 const agendaToday = computed(() => {
-  return (dataStore.state.schedule || []).filter(s => s.Date === plannerDate.value)
+  return plannerRepository.getSchedulesByDate(plannerDate.value)
     .sort((a,b) => (a.StartTime || '').localeCompare(b.StartTime || ''));
 });
 
-const getLesson = (id) => dataStore.state.lessons.find(l => l.LessonId === id);
+const getLesson = (id) => lessonRepository.getLessonById(id);
 
 const addSchedule = async () => {
   const les = getLesson(scheduleForm.value.lessonId);
   if (!les) return;
-  await dispatchAction('saveScheduleEntry', null, plannerDate.value, scheduleForm.value.start, scheduleForm.value.end,
-    les.SubjectId, les.SubjectName, les.LessonId, les['Lesson Name'], scheduleForm.value.notes
+  await plannerRepository.saveScheduleEntry(null, plannerDate.value, scheduleForm.value.start, scheduleForm.value.end,
+    les.SubjectId, les.SubjectName, les.LessonId, les['LessonName'], scheduleForm.value.notes
   );
   scheduleForm.value.notes = '';
 };

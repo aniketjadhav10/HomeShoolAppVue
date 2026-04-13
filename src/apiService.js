@@ -1,42 +1,52 @@
-import { callApi } from './api';
+import { callApi, SCRIPT_URL } from './api';
 import { cacheGlobalState } from './services/offlineService';
-import { addToQueue } from './services/syncService';
+import { addToQueue, processQueue } from './services/syncService';
 
-// smartDispatch acts as our global Frontend Request Intercept
-// We add an active ping to bypass "Lie-Fi" (where device is connected to a router, but router has no internet)
+// Lie-Fi detection: confirms real internet beyond the local router.
+// Pings OUR own GAS endpoint with a no-cors HEAD-like fetch and a
+// strict 3s AbortController timeout. If it resolves at all, we have real internet.
 const checkActualConnection = async () => {
-  if (!navigator.onLine) return false;
+  if (!navigator.onLine) return false; // Fast path: browser reports offline
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3000); // Max 3s wait
+
   try {
-    // A tiny fetch to our own server or a reliable 204 endpoint to confirm actual web traffic
-    const res = await fetch('https://httpbin.org/status/204', { mode: 'no-cors', cache: 'no-store' });
+    // Use no-cors so we don't need CORS headers — we only care if the network resolves.
+    // Use GET because Google Apps Script often returns 403/405 for HEAD requests.
+    await fetch(SCRIPT_URL, { method: 'GET', mode: 'no-cors', cache: 'no-store', signal: controller.signal });
     return true;
-  } catch(e) {
-    return false;
+  } catch {
+    return false; // Aborted (timeout) or DNS/network failure
+  } finally {
+    clearTimeout(timeoutId);
   }
 };
 
 export const smartDispatch = async (action, ...args) => {
-  const reallyOnline = await checkActualConnection();
+  // 1. Identify if this is a "Query" action that depends on a real-time server response.
+  // These should NOT be backgrounded as the UI usually waits for the specific output.
+  const QUERY_ACTIONS = ['getLessonDocContent', 'generateLessonTasksWithGemini', 'getHomeschoolData'];
+  const isQuery = QUERY_ACTIONS.includes(action);
 
-  if (reallyOnline) {
-    try {
-      const freshData = await callApi(action, ...args);
-      // Cache the fresh snapshot optimistically
-      if (freshData && freshData.subjects) {
-        await cacheGlobalState(freshData);
-      }
-      return freshData;
-    } catch(e) {
-      console.warn("GAS limit hit or network failed mid-flight. Queueing operation...", e);
-      // Fallback if GAS limits are hit despite being 'online'
-      await addToQueue(action, args, 'update');
-      return { _offlineQueued: true };
+  if (isQuery) {
+    const reallyOnline = await checkActualConnection();
+    if (reallyOnline) {
+      return await callApi(action, ...args);
+    } else {
+      throw new Error(`Offline: ${action} requires a live connection.`);
     }
-  } else {
-    // True Offline Mode
-    console.log(`[Offline Mode] Queueing mutation: ${action}`);
-    await addToQueue(action, args, 'update');
-    // We mock success for Vue components to organically reset forms
-    return { _offlineQueued: true }; 
   }
+
+  // 2. For all "Mutating" actions (save/update/delete):
+  // We ALWAYS add to the persistent queue first for reliability.
+  console.log(`[SmartDispatch] Backgrounding mutation: ${action}`);
+  await addToQueue(action, args, 'POST');
+
+  // 3. Trigger the queue processor in the background (Fire and Forget)
+  // We don't 'await' this so the UI returns instantly.
+  processQueue().catch(err => console.error('[Sync] Background process failed:', err));
+
+  // 4. Return a mock result so the store knows it was success/queued
+  return { _backgroundQueued: true };
 };

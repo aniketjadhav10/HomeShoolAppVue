@@ -1,11 +1,15 @@
 import { initDB } from './offlineService';
 import { callApi } from '../api';
+import { reactive } from 'vue'; // FIX: plain object mutations are NOT tracked by Vue
 
-export const syncState = {
+// FIX: syncState was a plain JS object — mutations like syncState.isOnline = true
+// would NOT trigger Vue template re-renders. Wrapping in reactive() fixes this.
+export const syncState = reactive({
   isOnline: navigator.onLine,
   syncPending: false,
+  syncSuccess: false,
   lastSyncTime: null
-};
+});
 
 window.addEventListener('online', () => {
   syncState.isOnline = true;
@@ -24,6 +28,9 @@ if ('serviceWorker' in navigator) {
       // The background native sync just finished and returned authoritative data from the server.
       syncState.syncPending = false;
       syncState.lastSyncTime = new Date().toLocaleTimeString();
+      // FIX: also set syncSuccess here for SW-initiated syncs (not just app-level ones)
+      syncState.syncSuccess = true;
+      setTimeout(() => { syncState.syncSuccess = false; }, 3000);
       window.dispatchEvent(new CustomEvent('homeschool-data-hydrated', { detail: event.data.data }));
     }
   });
@@ -31,17 +38,25 @@ if ('serviceWorker' in navigator) {
 
 export async function addToQueue(endpoint, payload, method) {
   const db = await initDB();
-  
-  // === ADVANCED FEATURE: UI-Side Deduplication ===
-  // If the user hammers a toggle button or changes text rapidly offline, we shouldn't save 50 duplicate network payloads.
-  // We actively scan the pending queue. If a matching edit action on the exact same item ID already exists,
-  // we update that payload in place to compress the queue seamlessly!
-  if (endpoint === 'updateTask' || endpoint === 'saveTask' || endpoint === 'saveLesson') {
+
+  // === Queue Deduplication — UPDATES ONLY ===
+  // Only collapse duplicate writes for UPDATE actions where the ID is a real,
+  // non-null, non-temp server ID. NEVER deduplicate CREATE operations
+  // (where payload[0] is null or starts with 'temp-') because each creation
+  // is a distinct record and must be saved separately.
+  const DEDUPE_ACTIONS = ['updateTask', 'updateLesson'];
+  const itemId = payload[0];
+  const isRealId = itemId && !itemId.toString().startsWith('temp-');
+
+  if (DEDUPE_ACTIONS.includes(endpoint) && isRealId) {
     const queueItems = await db.getAll('sync_queue');
-    const existing = queueItems.find(q => q.endpoint === endpoint && q.payload[0] === payload[0]);
-    
+    const existing = queueItems.find(
+      q => q.endpoint === endpoint && q.payload[0] === itemId
+    );
+
     if (existing) {
-      existing.payload = payload; 
+      console.log(`[SyncQueue] Deduplicating ${endpoint} for ID: ${itemId}`);
+      existing.payload = payload;
       existing.timestamp = Date.now();
       await db.put('sync_queue', existing);
       syncState.syncPending = true;
@@ -50,13 +65,14 @@ export async function addToQueue(endpoint, payload, method) {
     }
   }
 
+  console.log(`[SyncQueue] Enqueuing: ${endpoint}, ID: ${itemId ?? 'NEW'}`);
   await db.add('sync_queue', {
     endpoint,
     payload,
     method,
     timestamp: Date.now()
   });
-  
+
   syncState.syncPending = true;
   triggerBackgroundSync();
 }
@@ -97,13 +113,22 @@ export async function processQueue(retryCount = 0) {
       timestamp: q.timestamp
     }));
 
+    console.log(`[Sync] Calling batch execution for ${bulkPayload.length} actions.`);
     // Calling the custom batch execution endpoint on the GAS backend
     const success = await callApi('syncOfflineQueue', bulkPayload);
     
     if (success) {
+      console.log('[Sync] Batch sync success. Clearing local queue.');
       await db.clear('sync_queue');
       syncState.syncPending = false;
+      // FIX: Set syncSuccess so the green banner shows after a foreground sync completes
+      syncState.syncSuccess = true;
       syncState.lastSyncTime = new Date().toLocaleTimeString();
+      
+      console.log('[Sync] Hydrating authoritative state from server response.');
+      window.dispatchEvent(new CustomEvent('homeschool-data-hydrated', { detail: success }));
+      
+      setTimeout(() => { syncState.syncSuccess = false; }, 3000);
     }
   } catch (error) {
     console.error(`Sync failed (Attempt ${retryCount + 1}). Analyzing...`, error);

@@ -42,3 +42,15 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 0.8); 
 }
+
+/* Utility: hide scrollbar but keep scrollability */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Details/summary chevron rotation */
+details > summary { cursor: pointer; }
+details[open] .group-open\:rotate-180 { transform: rotate(180deg); }
+
+/* List transition */
+.list-enter-active, .list-leave-active { transition: all 0.3s ease; }
+.list-enter-from, .list-leave-to { opacity: 0; transform: translateY(-6px); }

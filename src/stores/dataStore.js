@@ -21,17 +21,27 @@ export const uiState = reactive({
   selectedSubjectForView: null
 });
 
-const mergeState = (incoming) => {
+export const mergeState = (incoming) => {
   const entityMap = {
     subjects: 'SubjectId',
     lessons: 'LessonId',
     tasks: 'LessonTaskId',
-    schedule: 'ScheduleId', // Or auto-increment fallback
-    calendarEvents: 'EventId'
+    progress: 'Id',
+    assessments: 'AssessmentId',
+    portfolio: 'Id',
+    calendarEvents: 'EventId',
+    schedule: 'ScheduleId'
   };
 
   Object.entries(incoming).forEach(([key, newItems]) => {
-    if (!Array.isArray(newItems) || !entityMap[key]) return;
+    const idField = entityMap[key];
+    if (!Array.isArray(newItems)) return;
+
+    if (!idField) {
+      // For simple log-style data without unique IDs, replace the whole array
+      dataStore.state[key] = newItems;
+      return;
+    }
 
     // Strategy: Update properties on existing objects to avoid Vue re-render flicker
     const existing = dataStore.state[key] || [];
@@ -45,16 +55,15 @@ const mergeState = (incoming) => {
         // Update properties on the existing reactive object
         Object.assign(found, newItem);
       } else {
-        // It's a truly new item from server (rare case during merge unless first load)
+        // It's a truly new item from server
         existing.push(newItem);
       }
     });
 
-    // Remove any temp items that are now represented by real IDs (if any left)
+    // Remove any temp items that are now represented by real IDs
     dataStore.state[key] = existing.filter(ex => {
       const idStr = ex[idField]?.toString() || '';
       if (!idStr.startsWith('temp-')) return true;
-      // If a non-temp item with the same data exists, remove the temp one
       return !newItems.some(ni => ni[idField] === idStr.replace('temp-', ''));
     });
   });

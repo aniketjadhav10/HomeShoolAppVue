@@ -10,12 +10,37 @@
 function sendDailySummaryEmail() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const lessonsSheet = ss.getSheetByName('Lessons');
+  const tasksSheet = ss.getSheetByName('LessonTask');
   if (!lessonsSheet) return;
+
+  let tasksByLessonId = {};
+  if (tasksSheet) {
+    const taskData = tasksSheet.getDataRange().getDisplayValues();
+    if (taskData.length > 1) {
+      const tHeaders = taskData[0].map(h => h.toString().trim());
+      const tLessonIdIdx = tHeaders.indexOf('LessonId');
+      const tNameIdx = tHeaders.indexOf('TaskName');
+      const tNotesIdx = tHeaders.indexOf('Notes');
+      const tStatusIdx = tHeaders.indexOf('Status');
+      
+      for (let i = 1; i < taskData.length; i++) {
+        const row = taskData[i];
+        const lId = row[tLessonIdIdx];
+        const tName = row[tNameIdx];
+        const tNotes = row[tNotesIdx] || '';
+        const tStatus = row[tStatusIdx] || '';
+        
+        if (!tasksByLessonId[lId]) tasksByLessonId[lId] = [];
+        tasksByLessonId[lId].push({ name: tName, notes: tNotes, status: tStatus });
+      }
+    }
+  }
 
   const lessons = lessonsSheet.getDataRange().getDisplayValues();
   if (lessons.length < 2) return;
 
   const headers = lessons[0].map(h => h.toString().trim());
+  const idIdx = headers.indexOf('LessonId');
   const statusIdx = headers.indexOf('Status');
   const weeklyIdx = headers.indexOf('LearnInThisWeek');
   const nameIdx = headers.indexOf('LessonName');
@@ -29,19 +54,21 @@ function sendDailySummaryEmail() {
 
   for (let i = 1; i < lessons.length; i++) {
     const row = lessons[i];
+    const lId = row[idIdx];
     const status = row[statusIdx] || '';
     const isWeekly = (row[weeklyIdx] || '').toString().toUpperCase() === 'TRUE';
     const name = row[nameIdx] || 'Unnamed Lesson';
     const learned = parseInt(row[learnedIdx]) || 0;
     const target = parseInt(row[targetIdx]) || 1;
+    const tasks = tasksByLessonId[lId] || [];
 
     if (status === 'In Progress') {
       inProgressCount++;
-      inProgressList.push({ name, learned, target });
+      inProgressList.push({ name, learned, target, tasks });
     }
     if (isWeekly) {
       weeklyPlanCount++;
-      weeklyList.push({ name, learned, target });
+      weeklyList.push({ name, learned, target, tasks });
     }
   }
 
@@ -50,6 +77,18 @@ function sendDailySummaryEmail() {
   
   const recipients = [userEmail];
   if (wifeEmail) recipients.push(wifeEmail);
+
+  // Helper to generate task HTML
+  const generateTaskHtml = (tasks) => {
+    if (!tasks || tasks.length === 0) return '';
+    let html = '<ul style="margin: 8px 0 0 0; padding-left: 20px; color: #475569; font-size: 13px;">';
+    tasks.forEach(t => {
+      const statusIcon = t.status === 'Completed' ? '✅' : '⏳';
+      html += `<li style="margin-bottom: 4px;"><strong>${t.name}</strong> ${t.notes ? `<em style="color: #64748b; font-size: 11px;">(${t.notes})</em>` : ''}</li>`;
+    });
+    html += '</ul>';
+    return html;
+  };
 
   const htmlBody = `
     <html>
@@ -75,16 +114,17 @@ function sendDailySummaryEmail() {
               </div>
             </div>
 
-            <!-- In Progress Section -->
+            <!-- This Week's Plan / Progress Section -->
             <h2 style="font-size: 14px; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-bottom: 16px;">
-              <span style="margin-right: 8px;">📚</span> Current Focus
+              <span style="margin-right: 8px;">📚</span> This Week's Lessons & Tasks
             </h2>
-            ${inProgressList.length > 0 ? inProgressList.map(l => `
-              <div style="margin-bottom: 12px; padding: 12px; background: #fafafa; border-radius: 12px; border: 1px solid #f1f5f9;">
-                <div style="font-size: 14px; font-weight: 700; color: #334155;">${l.name}</div>
-                <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Progress: ${l.learned} / ${l.target} sessions</div>
+            ${weeklyList.length > 0 ? weeklyList.map(l => `
+              <div style="margin-bottom: 16px; padding: 16px; background: #fafafa; border-radius: 12px; border: 1px solid #f1f5f9;">
+                <div style="font-size: 15px; font-weight: 700; color: #334155;">${l.name}</div>
+                <div style="font-size: 11px; font-weight: 700; color: #2563eb; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em;">Target: ${l.learned} / ${l.target} sessions</div>
+                ${generateTaskHtml(l.tasks)}
               </div>
-            `).join('') : '<p style="font-size: 13px; color: #94a3b8; font-style: italic;">No lessons currently in progress.</p>'}
+            `).join('') : '<p style="font-size: 13px; color: #94a3b8; font-style: italic;">No lessons scheduled for this week.</p>'}
 
             <!-- Action Button -->
             <div style="margin-top: 40px; text-align: center;">
@@ -104,7 +144,7 @@ function sendDailySummaryEmail() {
   try {
     MailApp.sendEmail({
       to: recipients.join(','),
-      subject: `📚 Homeschool Progress: ${inProgressCount} Lessons in Focus`,
+      subject: '📚 Homeschool Plan: ' + weeklyPlanCount + ' Lessons for this week',
       htmlBody: htmlBody
     });
     console.log(`[Email] Daily summary sent to: ${recipients.join(', ')}`);

@@ -171,12 +171,17 @@
 
         <!-- LESSON DETAIL VIEW OVERLAY FOR MOBILE / VIEW ON DESKTOP -->
         <transition name="slide-right" mode="out-in">
-          <LessonDetailView v-if="selectedLesson" :lesson="selectedLesson" @close="selectedLesson = null" />
+          <LessonDetailView v-if="selectedLesson" :lesson="selectedLesson" @close="selectedLesson = null" @open-schedule="showScheduleDrawer = true" />
         </transition>
 
         <!-- PLANNER VIEW -->
         <transition name="fade" mode="out-in">
           <PlannerView v-if="activeTab === 'planner' && !selectedLesson" />
+        </transition>
+
+        <!-- PROGRESS VIEW -->
+        <transition name="fade" mode="out-in">
+          <ProgressView v-if="activeTab === 'progress' && !selectedLesson" @open-lesson="openLesson" />
         </transition>
 
         <!-- PROFILE VIEW -->
@@ -261,6 +266,9 @@
       </div>
     </transition>
 
+    <!-- Scheduling Hub Popup - placed at app root to avoid transform stacking context issues -->
+    <LessonScheduleDrawer v-if="selectedLesson" v-model="showScheduleDrawer" :lesson="selectedLesson" />
+
   </div>
 </template>
 
@@ -272,10 +280,12 @@ import { syncState, processQueue } from '../services/syncService';
 import DashboardView from './dashboard/DashboardView.vue';
 import CurriculumView from './curriculum/CurriculumView.vue';
 import LessonDetailView from './lesson/LessonDetailView.vue';
+import LessonScheduleDrawer from './lesson/LessonScheduleDrawer.vue';
 import PlannerView from './planner/PlannerView.vue';
 import ProfileView from './profile/ProfileView.vue';
 import SettingsView from './settings/SettingsView.vue';
 import WeeklyView from './weekly/WeeklyView.vue';
+import ProgressView from './curriculum/ProgressView.vue';
 
 
 // === TABS CONFIG ===
@@ -297,6 +307,7 @@ const activeTab = ref('weekly');
 const selectedLesson = ref(null);
 const showMobileMenu = ref(false);
 const syncingCalendar = ref(false);
+const showScheduleDrawer = ref(false);
 
 // ─── Actions moved from Dashboard ───────────────────────────────────────────
 const handleRefresh = async () => {
@@ -351,7 +362,9 @@ onMounted(() => {
   window.addEventListener('homeschool-data-hydrated', async (e) => {
     const freshData = e.detail;
     if (freshData && freshData.subjects) {
-      dataStore.state = { ...dataStore.state, ...freshData };
+      import('../stores/dataStore').then(({ mergeState }) => {
+        mergeState(freshData);
+      });
       // syncSuccess is now managed by syncService.js directly — no need to set it here again
     }
   });
@@ -442,6 +455,7 @@ const triggerInstall = async () => {
 const setTab = (tab) => {
   activeTab.value = tab;
   selectedLesson.value = null;
+  showScheduleDrawer.value = false;
   uiState.selectedSubjectForView = null; // Clear selected subject when navigating
   // Scroll to top instantly on mobile navigation
   window.scrollTo(0,0);
@@ -450,6 +464,7 @@ const setTab = (tab) => {
 
 const openLesson = (lesson) => {
   selectedLesson.value = lesson;
+  showScheduleDrawer.value = false;
 };
 </script>
 

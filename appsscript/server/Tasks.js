@@ -40,7 +40,7 @@ function updateTask(taskId, lessonId, lessonName, status, learnedCount, targetCo
   }
 
   if (typeof clearDataCache === 'function') clearDataCache();
-  return getHomeschoolData();
+  return { success: true };
 }
 
 function saveLessonTask(taskId, lessonId, lessonName, notes, targetCount) {
@@ -114,9 +114,7 @@ function saveLessonTask(taskId, lessonId, lessonName, notes, targetCount) {
   }
 
   if (typeof clearDataCache === 'function') clearDataCache();
-  const result = getHomeschoolData();
-  if (isNew) result._newId = createdId;
-  return result;
+  return { _newId: isNew ? createdId : null };
 }
 
 function deleteLessonTask(taskId) {
@@ -141,7 +139,8 @@ function deleteLessonTask(taskId) {
     }
   }
 
-  return getHomeschoolData();
+  if (typeof clearDataCache === 'function') clearDataCache();
+  return { success: true };
 }
 
 function generateLessonTasksWithGemini(lessonId, lessonName, childAge) {
@@ -278,7 +277,8 @@ function generateLessonTasksWithGemini(lessonId, lessonName, childAge) {
     console.warn('[AI] Gemini returned data but no valid task rows were constructed.');
   }
 
-  return getHomeschoolData();
+  if (typeof clearDataCache === 'function') clearDataCache();
+  return { success: true };
 }
 
 /**

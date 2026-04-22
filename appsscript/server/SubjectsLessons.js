@@ -45,9 +45,7 @@ function saveSubject(subjectId, name, description) {
   }
 
   if (typeof clearDataCache === 'function') clearDataCache();
-  const result = getHomeschoolData();
-  if (isNew) result._newId = createdId;
-  return result;
+  return { _newId: isNew ? createdId : null };
 }
 
 function deleteSubject(subjectId) {
@@ -63,7 +61,7 @@ function deleteSubject(subjectId) {
     }
   }
   if (typeof clearDataCache === 'function') clearDataCache();
-  return getHomeschoolData();
+  return { success: true };
 }
 
 function saveLesson(lessonId, subjectId, subjectName, lessonName, description, learnThisWeek, blockType) {
@@ -150,9 +148,7 @@ function saveLesson(lessonId, subjectId, subjectName, lessonName, description, l
   }
 
   if (typeof clearDataCache === 'function') clearDataCache();
-  const result = getHomeschoolData();
-  if (isNew) result._newId = createdId;
-  return result;
+  return { _newId: isNew ? createdId : null };
 }
 
 function deleteLesson(lessonId) {
@@ -168,7 +164,7 @@ function deleteLesson(lessonId) {
     }
   }
   if (typeof clearDataCache === 'function') clearDataCache();
-  return getHomeschoolData();
+  return { success: true };
 }
 
 /**
@@ -177,13 +173,13 @@ function deleteLesson(lessonId) {
 function updateLesson(lessonId, status, learnInThisWeek, learnedCount, targetCount, blockType) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('Lessons');
-  if (!sheet) return getHomeschoolData();
+  if (!sheet) return { success: false };
 
   const data = sheet.getDataRange().getValues();
   const headers = data[0];
   const idIdx = headers.indexOf('LessonId');
 
-  if (idIdx === -1) return getHomeschoolData();
+  if (idIdx === -1) return { success: false };
 
   const statusIdx = headers.indexOf('Status');
   const weeklyIdx = headers.indexOf('LearnInThisWeek');
@@ -243,7 +239,7 @@ function updateLesson(lessonId, status, learnInThisWeek, learnedCount, targetCou
   }
 
   if (typeof clearDataCache === 'function') clearDataCache();
-  return getHomeschoolData();
+  return { success: true };
 }
 
 function getLessonDocContent(lessonName) {
